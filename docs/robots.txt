@@ -1,0 +1,2 @@
+User-agent: *
+Sitemap: https://cablevpn.yalaso.top/sitemap.xml 

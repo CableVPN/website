@@ -1,0 +1,68 @@
+name: Build
+on:
+  # see https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#repository_dispatch
+  repository_dispatch:
+    types: ["build"]
+  push:
+    tags-ignore:
+      - '*'
+    branches:
+      - main
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+
+jobs:
+  main:
+    if: "!contains(github.event.head_commit.message, 'skip ci')"
+    runs-on: ubuntu-20.04
+
+    steps:
+    # see https://github.com/actions/checkout
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+        path: main
+
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        repository: ${{ secrets.REPOSITORY }}
+        token: ${{ secrets.GH_PAT }}
+        submodules: recursive
+        path: src
+
+    - uses: actions/setup-node@v3
+      id: setup-node
+      with:
+        node-version: 16
+    
+    - name: Build
+      id: build
+      run: |
+        cd src
+        yarn config set "strict-ssl" false -g
+        yarn install
+        yarn build
+        cd -
+
+    - name: Auto Commit
+      id: auto-commit
+      run: |
+        cp -rT src/public main/docs
+        cp -rT src/dist main/docs
+        cp main/CNAME main/docs
+        cd main
+        ./.github/post_auto_commit.sh
+        cd -
+
+    - name: Notify on Slack
+      uses: act10ns/slack@v1.2.2
+      with:
+        status: ${{ job.status }}
+        channel: '#alert'
+        steps: ${{ toJson(steps) }}
+      # if: failure()
+      if: always()
